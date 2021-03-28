@@ -3,7 +3,8 @@
 	"displayName": "vscode fzf",
   "publisher": "andyyu2004",
 	"description": "",
-	"version": "0.0.1",
+	"version": "0.0.2",
+  "repository": "https://github.com/andyyu2004/vscode-fzf",
 	"engines": {
 		"vscode": "^1.54.0"
 	},
