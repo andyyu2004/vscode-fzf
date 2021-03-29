@@ -100,7 +100,18 @@ export function activate(context: vscode.ExtensionContext) {
     // TODO best way to get cwd? maybe loop over all workspace roots
     const cwd = workspace.workspaceFolders![0].uri.fsPath;
     const rgExecPath = "rg";
-    const child = cp.spawn(rgExecPath, ["-n", "--smart-case", filter], {
+
+    // using a pretty arbitrary idea that a leading `/` indicates regex
+    const useRegex = filter.startsWith("/");
+    const args = ["--line-number", "--smart-case"];
+    if (useRegex) {
+      filter = filter.substring(1);
+    } else {
+      args.push("--fixed-strings");
+    }
+    args.push(filter);
+    console.log(args);
+    const child = cp.spawn(rgExecPath, args, {
       cwd,
     });
     const output = await streamToString(child.stdout);
