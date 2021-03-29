@@ -3,6 +3,7 @@
 import * as vscode from "vscode";
 import * as cp from "child_process";
 import * as path from "path";
+import { rgPath } from "vscode-ripgrep";
 import { workspace, window, QuickPickItem } from "vscode";
 import { Readable } from "node:stream";
 
@@ -15,7 +16,7 @@ export function activate(context: vscode.ExtensionContext) {
       const quickPick = window.createQuickPick<Item>();
       quickPick.matchOnDescription = false;
       quickPick.matchOnDetail = true;
-      quickPick.placeholder = "<search>";
+      quickPick.placeholder = "Search";
       quickPick.items = await populateSearchItems();
 
       const originalEditor = window.activeTextEditor;
@@ -98,7 +99,8 @@ export function activate(context: vscode.ExtensionContext) {
     }
     // TODO best way to get cwd? maybe loop over all workspace roots
     const cwd = workspace.workspaceFolders![0].uri.fsPath;
-    const child = cp.spawn("/usr/bin/rg", ["-n", "--smart-case", filter], {
+    const rgExecPath = "rg";
+    const child = cp.spawn(rgExecPath, ["-n", "--smart-case", filter], {
       cwd,
     });
     const output = await streamToString(child.stdout);
