@@ -22,7 +22,6 @@ export function activate(context: vscode.ExtensionContext) {
       const originalEditor = window.activeTextEditor;
       const originalDoc = originalEditor?.document;
       const originalSelection = originalEditor?.selection;
-      console.log(originalEditor?.document.fileName);
 
       let hasAccepted = false;
 
@@ -48,10 +47,9 @@ export function activate(context: vscode.ExtensionContext) {
         quickPick.items = await populateSearchItems(filter);
       });
 
-      quickPick.onDidChangeSelection(async items => {
-        console.log("selection changed", items);
-        // showDocument(items[0], true);
-      });
+      // quickPick.onDidChangeSelection(async items => {
+      //   showDocument(items[0], true);
+      // });
 
       quickPick.onDidChangeActive(async item => {
         showDocument(item[0], true);
@@ -92,7 +90,13 @@ export function activate(context: vscode.ExtensionContext) {
     function streamToString(stream: Readable): Promise<string> {
       const chunks: any[] = [];
       return new Promise((resolve, reject) => {
-        stream.on("data", chunk => chunks.push(Buffer.from(chunk)));
+        stream.on("data", chunk => {
+          chunks.push(Buffer.from(chunk));
+          if (chunks.length > LIMIT) {
+            resolve(Buffer.concat(chunks).toString("utf8"));
+            stream.destroy();
+          }
+        });
         stream.on("error", err => reject(err));
         stream.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
       });
@@ -118,11 +122,6 @@ export function activate(context: vscode.ExtensionContext) {
     // const errors = await streamToString(child.stderr);
     // console.log("errors", errors);
     const lines = output.split("\n");
-
-    // have a reasonable limit before showing anything otherwise it may be slow
-    if (lines.length > LIMIT) {
-      return [];
-    }
 
     function parse(lines: string[]): Item[] {
       const parsedLines: Item[] = [];
