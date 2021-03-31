@@ -1,10 +1,12 @@
+import * as cp from "child_process";
+import { stdout } from "node:process";
+import { Readable } from "node:stream";
+import * as path from "path";
+import * as split from "split2";
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from "vscode";
-import * as split from "split2";
-import * as cp from "child_process";
-import * as path from "path";
-import { workspace, window, QuickPickItem } from "vscode";
+import { QuickPickItem, window, workspace } from "vscode";
 
 const CONFIG = vscode.workspace.getConfiguration();
 const LIMIT = CONFIG.get<number>("vscode-fzf.resultLimit")!;
@@ -17,7 +19,12 @@ export function activate(context: vscode.ExtensionContext) {
       quickPick.matchOnDescription = false;
       quickPick.matchOnDetail = true;
       quickPick.placeholder = "Search";
-      quickPick.items = await populateSearchItems();
+      const items = await populateSearchItems().catch(console.error);
+      console.log(items);
+      if (!items) {
+        return;
+      }
+      quickPick.items = items;
 
       const originalEditor = window.activeTextEditor;
       const originalDoc = originalEditor?.document;
@@ -44,7 +51,9 @@ export function activate(context: vscode.ExtensionContext) {
       });
 
       quickPick.onDidChangeValue(async filter => {
-        quickPick.items = await populateSearchItems(filter);
+        const items = await populateSearchItems(filter);
+        // can roughly assume it won't fail if it didn't fail on the first attempt
+        quickPick.items = items!;
       });
 
       // quickPick.onDidChangeSelection(async items => {
@@ -89,28 +98,62 @@ async function showDocument(item?: Item, preserveFocus = false) {
   activeTextEditor.revealRange(range, vscode.TextEditorRevealType.Default);
 }
 
-async function populateSearchItems(filter: string = ""): Promise<Item[]> {
-  // TODO best way to get cwd? maybe loop over all workspace roots
-  const cwd = workspace.workspaceFolders![0].uri.fsPath;
-  const rgExecPath = "rg";
-
-  // using a pretty arbitrary idea that a leading `/` indicates regex
-  const useRegex = filter.startsWith("/");
-  const args = ["--line-number", "--smart-case"];
-  if (useRegex) {
-    filter = filter.substring(1);
-  } else {
-    args.push("--fixed-strings");
-  }
-  args.push(filter);
-  const child = cp.spawn(rgExecPath, args, {
-    cwd,
+async function streamToString(stream: Readable): Promise<string> {
+  const chunks: any[] = [];
+  return new Promise((resolve, reject) => {
+    stream.on("data", chunk => chunks.push(Buffer.from(chunk)));
+    stream.on("error", err => reject(err));
+    stream.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
   });
+}
 
-  const parsedLines: Item[] = [];
-  const stream = child.stdout.pipe(split());
-  return new Promise(resolve => {
+async function populateSearchItems(filter: string = ""): Promise<Item[]> {
+  return new Promise(async (resolve, reject) => {
+    if (!filter) {
+      return resolve([]);
+    }
+
+    // TODO best way to get cwd? maybe loop over all workspace roots
+    const cwd = workspace.workspaceFolders?.[0].uri?.fsPath;
+    if (!cwd) {
+      window.showErrorMessage("You must be in a workspace to run this command");
+      return reject(undefined);
+    }
+
+    // using a pretty arbitrary idea that a leading `/` indicates regex
+    const useRegex = filter.startsWith("/");
+    const args = ["--line-number", "--smart-case"];
+    if (useRegex) {
+      filter = filter.substring(1);
+    } else {
+      args.push("--fixed-strings");
+    }
+    args.push(filter);
+
+    const rgExecPath = "rg";
+    console.log(cwd);
+    const child = cp.spawn(rgExecPath, args, {
+      cwd,
+      // this is necessary to make it work on windows
+      // but works fine without on linux and osx
+      // shell: process.platform === "win32",
+      shell: true,
+    });
+
+    child.on("error", () => console.log("failed to spawn rg"));
+
+    const stderr = await streamToString(child.stderr);
+    console.log("stderr", stderr);
+    // const stdout = await streamToString(child.stdout);
+    // console.log("stdout", stdout);
+
+    const parsedLines: Item[] = [];
+    const stream = child.stdout.pipe(split());
+    stream.on("close", () => resolve(parsedLines));
+    stream.on("end", () => resolve(parsedLines));
+    stream.on("error", () => reject("stream failed"));
     stream.on("data", line => {
+      console.log("recv data");
       const sep = ":";
       const [filepath, linenumber, ...xs] = line.split(sep);
       const text = xs.join(sep);
