@@ -1,7 +1,5 @@
 import * as cp from "child_process";
-import { Readable } from "node:stream";
 import * as path from "path";
-import { RipGrep } from "ripgrep-node";
 import * as split from "split2";
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
@@ -104,63 +102,12 @@ async function showDocument(item?: Item, preserveFocus = false) {
   activeTextEditor.revealRange(range, vscode.TextEditorRevealType.Default);
 }
 
-async function streamToString(stream: Readable): Promise<string> {
-  const chunks: any[] = [];
-  return new Promise((resolve, reject) => {
-    stream.on("data", chunk => chunks.push(Buffer.from(chunk)));
-    stream.on("error", err => reject(err));
-    stream.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-  });
-}
-
 async function populateSearchItems(filter: string = ""): Promise<Item[]> {
-  if (process.platform === "win32") {
-    return populateSearchItemsWin(filter);
-  }
-  return populateSearchItemsUnix(filter);
-}
-
-// using alternative implementation for windows as it seems to refuse to
-// capture stdout ('data' event is never called)
-// although stderr seems to work
-// might be rg specific I have no idea anymore
-// however, ripgrep-node seems to work on windows
-// but it uses execSync and I'd rather keep the old async implementation where it works
-async function populateSearchItemsWin(filter: string = ""): Promise<Item[]> {
   if (!filter) {
     return [];
   }
 
-  const useRegex = filter.startsWith("/");
-  if (useRegex) {
-    filter = filter.substring(1);
-  }
-
-  console.log(filter);
-  const rg = new RipGrep(filter, cwd!).lineNumber().smartCase().maxCount(10);
-  if (!useRegex) {
-    rg.fixedStrings();
-  }
-  rg.run();
-
-  const output = rg.asString();
-
-  if (output.length > 10000) {
-    return [];
-  }
-
-  return <Item[]>output
-    .split("\n")
-    .map(parseLine)
-    .filter(item => item !== undefined);
-}
-
-async function populateSearchItemsUnix(filter: string = ""): Promise<Item[]> {
   return new Promise(async (resolve, reject) => {
-    if (!filter) {
-      return resolve([]);
-    }
-
     // using a pretty arbitrary idea that a leading `/` indicates regex
     const args = ["--line-number", "--smart-case"];
     const useRegex = filter.startsWith("/");
@@ -171,14 +118,20 @@ async function populateSearchItemsUnix(filter: string = ""): Promise<Item[]> {
     }
     args.push(filter);
 
+    // make it unambiguous that rg should search the cwd
+    // (and not take input from stdin)
+    // this was the reason for the pain on windows
+    // https://github.com/BurntSushi/ripgrep/issues/410
+    args.push("--");
+    args.push(".");
+
     const rgExecPath = "rg";
 
     const child = cp.spawn(rgExecPath, args, {
       cwd,
-      stdio: "pipe",
       // this is necessary to make it work on windows
       // but works fine without on linux and osx
-      shell: process.platform === "win32",
+      // shell: process.platform === "win32",
     });
 
     child.on("error", () => console.log("failed to spawn rg"));
@@ -194,7 +147,6 @@ async function populateSearchItemsUnix(filter: string = ""): Promise<Item[]> {
     stream.on("close", () => resolve(parsedLines));
     stream.on("end", () => resolve(parsedLines));
     stream.on("error", () => reject("stream failed"));
-    stream.on("readable", () => console.log("stdout is readable"));
     stream.on("data", line => {
       const item = parseLine(line);
       item && parsedLines.push(item);
