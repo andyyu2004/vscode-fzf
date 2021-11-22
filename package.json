@@ -3,17 +3,13 @@
   "displayName": "vscode fzf",
   "publisher": "andyyu2004",
   "description": "",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "repository": "https://github.com/andyyu2004/vscode-fzf",
   "engines": {
     "vscode": "^1.54.0"
   },
-  "categories": [
-    "Other"
-  ],
-  "activationEvents": [
-    "onCommand:vscode-fzf.rg"
-  ],
+  "categories": ["Other"],
+  "activationEvents": ["onCommand:vscode-fzf.rg"],
   "main": "./dist/extension.js",
   "contributes": {
     "configuration": {

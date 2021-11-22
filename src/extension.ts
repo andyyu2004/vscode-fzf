@@ -129,31 +129,33 @@ async function populateSearchItems(filter: string = ""): Promise<Item[]> {
 
     const child = cp.spawn(rgExecPath, args, {
       cwd,
-      // this is necessary to make it work on windows
-      // but works fine without on linux and osx
-      // shell: process.platform === "win32",
     });
 
-    child.on("error", () => console.log("failed to spawn rg"));
-
-    // const stderr = await streamToString(child.stderr);
-    // console.log("stderr", stderr);
-    // const stdout = await streamToString(child.stdout);
-    // console.log("stdout", stdout);
+    child.on("error", () => reject("failed to spawn rg"));
 
     const parsedLines: Item[] = [];
 
+    function resolveAndKill<T>(items: Item[]) {
+      child.kill("SIGTERM");
+      resolve(items);
+    }
+
+    function rejectAndKill<T>(error: any) {
+      child.kill("SIGTERM");
+      reject(error);
+    }
+
     const stream = child.stdout.pipe(split());
-    stream.on("close", () => resolve(parsedLines));
-    stream.on("end", () => resolve(parsedLines));
-    stream.on("error", () => reject("stream failed"));
+    stream.on("close", () => resolveAndKill(parsedLines));
+    stream.on("end", () => resolveAndKill(parsedLines));
+    stream.on("error", () => rejectAndKill("stream failed"));
     stream.on("data", line => {
       const item = parseLine(line);
       item && parsedLines.push(item);
 
       if (parsedLines.length >= LIMIT && !stream.destroyed) {
         stream.destroy();
-        resolve(parsedLines);
+        resolveAndKill(parsedLines);
       }
     });
   });
