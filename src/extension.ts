@@ -8,6 +8,7 @@ import { QuickPickItem, window, workspace } from "vscode";
 
 const CONFIG = vscode.workspace.getConfiguration();
 const LIMIT = CONFIG.get<number>("vscode-fzf.resultLimit")!;
+const DEBOUNCE = CONFIG.get<number>("vscode-fzf.debounceTime")!;
 
 // TODO best way to get cwd? maybe loop over all workspace roots
 const cwd = workspace.workspaceFolders?.[0].uri?.fsPath;
@@ -54,10 +55,14 @@ export function activate(context: vscode.ExtensionContext) {
           window.activeTextEditor?.revealRange(originalSelection);
       });
 
+      let timeout: NodeJS.Timeout | undefined;
       quickPick.onDidChangeValue(async filter => {
-        const items = await populateSearchItems(filter);
-        // can roughly assume it won't fail if it didn't fail on the first attempt
-        quickPick.items = items!;
+        timeout && clearTimeout(timeout);
+        timeout = setTimeout(async () => {
+          const items = await populateSearchItems(filter);
+          // can roughly assume it won't fail if it didn't fail on the first attempt
+          quickPick.items = items!;
+        }, DEBOUNCE);
       });
 
       // quickPick.onDidChangeSelection(async items => {

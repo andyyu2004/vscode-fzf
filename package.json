@@ -3,13 +3,17 @@
   "displayName": "vscode fzf",
   "publisher": "andyyu2004",
   "description": "",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "repository": "https://github.com/andyyu2004/vscode-fzf",
   "engines": {
     "vscode": "^1.54.0"
   },
-  "categories": ["Other"],
-  "activationEvents": ["onCommand:vscode-fzf.rg"],
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:vscode-fzf.rg"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "configuration": {
@@ -18,6 +22,11 @@
           "type": "number",
           "default": 100,
           "description": "The number of results before stopping"
+        },
+        "vscode-fzf.debounceTime": {
+          "type": "number",
+          "default": 250,
+          "description": "The number of milliseconds to debounce"
         }
       }
     },
