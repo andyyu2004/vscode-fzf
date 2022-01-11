@@ -109,7 +109,7 @@ async function populateSearchItems(filter: string = ""): Promise<Item[]> {
 
   return new Promise(async (resolve, reject) => {
     // using a pretty arbitrary idea that a leading `/` indicates regex
-    const args = ["--line-number", "--smart-case"];
+    const args = ["--line-number", "--smart-case", "--hidden"];
     const useRegex = filter.startsWith("/");
     if (useRegex) {
       filter = filter.substring(1);
